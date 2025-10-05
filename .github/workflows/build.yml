@@ -1,0 +1,82 @@
+name: Build and Release Frontend
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Configure build output directory
+      run: |
+        # 修改vite.config.ts，将输出目录改为dist
+        sed -i "s|outDir: '../cmd/server/web'|outDir: 'dist'|g" vite.config.ts
+        echo "Updated vite.config.ts"
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Check build output
+      run: |
+        echo "Build completed successfully!"
+        ls -la dist/
+        
+    - name: Create release archive
+      run: |
+        cd dist
+        zip -r ../dist.zip ./*
+        cd ..
+        ls -la dist.zip
+
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create and Upload Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        name: ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          这是FireFlow前端项目的编译构建包。
+
+          提交: ${{ github.sha }}
+        files: |
+          dist.zip
+        draft: false
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload build artifacts (for manual download)
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ steps.get_version.outputs.VERSION }}
+        path: dist.zip
+        retention-days: 30
