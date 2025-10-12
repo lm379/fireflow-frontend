@@ -63,71 +63,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { getSystemConfig, saveSystemConfig, syncIPNow, getCurrentIP } from '../api';
-import type { SystemConfig } from '../api';
-import { ElMessage } from 'element-plus';
+import { onMounted } from 'vue'
+import { useSystemSettings } from '../composables/useSystemSettings'
+import '../styles/components/system-settings.css'
 
-const form = ref<SystemConfig>({
-  ip_fetch_url: '',
-  ip_check_interval: 5,
-  cron_enabled: 'true',
-});
-
-const currentIP = ref('获取中...');
-
-const fetchSystemConfig = async () => {
-  try {
-    const response = await getSystemConfig();
-    form.value = response.data;
-  } catch (error) {
-    ElMessage.error('获取系统配置失败');
-  }
-};
-
-const fetchCurrentIP = async () => {
-  try {
-    const response = await getCurrentIP();
-    currentIP.value = response.data.current_ip;
-  } catch (error) {
-    currentIP.value = '获取失败';
-    ElMessage.error('获取当前IP失败');
-  }
-};
+const {
+  form,
+  currentIP,
+  onSubmit,
+  handleSyncIP,
+  initData,
+} = useSystemSettings()
 
 onMounted(() => {
-  fetchSystemConfig();
-  fetchCurrentIP();
+  initData()
 });
-
-const onSubmit = async () => {
-  try {
-    await saveSystemConfig(form.value);
-    ElMessage.success('系统设置保存成功');
-  } catch (error) {
-    ElMessage.error('保存系统设置失败');
-  }
-};
-
-const handleSyncIP = async () => {
-  try {
-    const response = await syncIPNow();
-    ElMessage.success(response.data.message);
-    fetchCurrentIP();
-  } catch (error) {
-    ElMessage.error('同步IP失败');
-  }
-};
 </script>
-
-<style scoped>
-.box-card {
-  margin-bottom: 20px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-</style>

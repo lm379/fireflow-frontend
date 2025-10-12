@@ -38,6 +38,7 @@ export interface CloudConfig {
   description: string;
   is_default: boolean;
   is_enabled: boolean;
+  project_id?: string;
   CreatedAt: string;
 }
 
@@ -48,6 +49,15 @@ export interface SystemConfig {
   cron_enabled: string;
 }
 
+// Execute Rule Response types
+export interface ExecuteRuleResponse {
+  cloud_ip: string;
+  current_ip: string;
+  ip_changed: boolean;
+  message: string;
+  status: 'unchanged' | 'updated' | 'error';
+}
+
 // API functions
 
 // Firewall Rules
@@ -55,7 +65,8 @@ export const getRules = () => apiClient.get<FirewallRule[]>('/rules/');
 export const addRule = (rule: Omit<FirewallRule, 'ID' | 'UpdatedAt' | 'last_ip' | 'provider' | 'instance_id'>) => apiClient.post('/rules/', rule);
 export const updateRule = (id: number, rule: FirewallRule) => apiClient.put(`/rules/${id}`, rule);
 export const deleteRule = (id: number) => apiClient.delete(`/rules/${id}`);
-export const executeRule = (id: number) => apiClient.post(`/rules/${id}/execute`);
+export const executeRule = (id: number): Promise<ApiResponse<ExecuteRuleResponse>> => 
+  apiClient.post(`/rules/${id}/execute`);
 
 // Cloud Configs
 export const getCloudConfigs = () => apiClient.get<CloudConfig[]>('/cloud-configs/');
