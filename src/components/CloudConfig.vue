@@ -11,32 +11,44 @@
           <el-col :span="12">
             <el-form-item label="云服务商 *">
               <el-select v-model="form.provider" placeholder="请选择云服务商" @change="onProviderChange" style="width: 100%;">
-                <el-option v-for="item in providers" :key="item" :label="getProviderDisplayName(item)" :value="item"></el-option>
+                <el-option v-for="item in providers" :key="item" :label="getProviderDisplayName(item)"
+                  :value="item"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="区域 *">
-              <el-select v-model="form.region" placeholder="请选择区域" filterable :loading="loadingRegions" style="width: 100%;">
-                <el-option v-for="item in regions" :key="item.code" :label="`${item.name} (${item.code})`" :value="item.code"></el-option>
+              <el-select v-model="form.region" placeholder="请选择区域" filterable :loading="loadingRegions"
+                style="width: 100%;">
+                <el-option v-for="item in regions" :key="item.code" :label="`${item.name} (${item.code})`"
+                  :value="item.code"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
+            <el-form-item label="类型 *">
+              <el-select v-model="form.type" placeholder="请选择服务器类型" filterable :loading="loadingServiceTypes"
+                style="width: 100%;">
+                <el-option v-for="item in serviceTypes" :key="item.Value" :label="`${item.DisplayName} (${item.Name})`"
+                  :value="item.Value"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="实例ID/安全组ID *">
               <el-input v-model="form.instance_id" placeholder="云服务器实例ID/安全组ID"></el-input>
             </el-form-item>
           </el-col>
+        </el-row>
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="配置描述">
               <el-input v-model="form.description" placeholder="配置用途描述"></el-input>
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="20" v-if="showProjectId">
-          <el-col :span="12">
+          <el-col :span="12" v-if="showProjectId">
             <el-form-item label="Project ID *">
               <el-input v-model="form.project_id" placeholder="华为云项目ID"></el-input>
             </el-form-item>
@@ -91,29 +103,35 @@
             {{ getProviderDisplayName(scope.row.provider) }}
           </template>
         </el-table-column>
-        <el-table-column prop="region" label="区域" width="150" />
-        <el-table-column prop="instance_id" label="实例ID" width="180" />
-        <el-table-column prop="project_id" label="Project ID" width="150">
+        <el-table-column prop="type" label="类型" width="120">
           <template #default="scope">
-            {{ scope.row.project_id || '-' }}
+            {{ getServiceTypeDisplayName(scope.row.provider, scope.row.type) }}
           </template>
         </el-table-column>
+        <el-table-column prop="region" label="区域" width="150" />
+        <el-table-column prop="instance_id" label="实例ID" width="180" />
         <el-table-column label="Access Key ID" width="150">
           <template #default="scope">
             {{ scope.row.secret_id ? scope.row.secret_id.substr(0, 8) + '***' : '' }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" />
+        <el-table-column prop="project_id" label="Project ID" width="120">
+          <template #default="scope">
+            {{ scope.row.project_id || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="80">
+          <template #default="scope">
+            <el-tag :type="scope.row.is_enabled ? 'success' : 'danger'">{{ scope.row.is_enabled ? '启用' : '禁用'
+              }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="默认" width="80">
           <template #default="scope">
             <el-tag :type="scope.row.is_default ? 'success' : 'info'">{{ scope.row.is_default ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
-          <template #default="scope">
-            <el-tag :type="scope.row.is_enabled ? 'success' : 'danger'">{{ scope.row.is_enabled ? '启用' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="description" label="描述" />
         <el-table-column prop="CreatedAt" label="创建时间" width="180" :formatter="formatDate" />
         <el-table-column label="操作" fixed="right" width="200">
           <template #default="scope">
@@ -129,13 +147,15 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useCloudConfig, getProviderDisplayName, formatDate } from '../composables/useCloudConfig'
+import { useCloudConfig, getProviderDisplayName, getServiceTypeDisplayName, formatDate } from '../composables/useCloudConfig'
 
 const {
   configs,
   providers,
   regions,
+  serviceTypes,
   loadingRegions,
+  loadingServiceTypes,
   form,
   isEdit,
   showProjectId,

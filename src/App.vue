@@ -15,15 +15,15 @@
             <Menu />
           </el-icon>
         </div>
-        <el-menu-item index="rules">
+        <el-menu-item index="/rules">
           <el-icon><List /></el-icon>
           <template #title>防火墙规则</template>
         </el-menu-item>
-        <el-menu-item index="cloud-config">
+        <el-menu-item index="/cloud-config">
           <el-icon><Cloudy /></el-icon>
           <template #title>云服务配置</template>
         </el-menu-item>
-        <el-menu-item index="system">
+        <el-menu-item index="/system">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
         </el-menu-item>
@@ -47,43 +47,32 @@
         </div>
       </el-header>
       <el-main>
-        <div v-if="activeMenu === 'rules'">
-          <FirewallRules />
-        </div>
-        <div v-if="activeMenu === 'cloud-config'">
-          <CloudConfig />
-        </div>
-        <div v-if="activeMenu === 'system'">
-          <SystemSettings />
-        </div>
+        <router-view />
       </el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import FirewallRules from './components/FirewallRules.vue';
-import CloudConfig from './components/CloudConfig.vue';
-import SystemSettings from './components/SystemSettings.vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { Menu, List, Cloudy, Setting, Fold, Expand, Link } from '@element-plus/icons-vue';
 import './styles/app.css';
 
-const activeMenu = ref('rules');
+const router = useRouter();
+const route = useRoute();
+
+const activeMenu = ref('/rules');
 const isCollapse = ref(false);
 
 const currentPageTitle = computed(() => {
-  switch (activeMenu.value) {
-    case 'rules':
-      return '防火墙规则';
-    case 'cloud-config':
-      return '云服务配置';
-    case 'system':
-      return '系统设置';
-    default:
-      return '防火墙规则';
-  }
+  return route.meta.title as string || '防火墙规则';
 });
+
+// 监听路由变化，更新活动菜单
+watch(() => route.path, (newPath) => {
+  activeMenu.value = newPath;
+}, { immediate: true });
 
 const handleMenuSelect = (index: string) => {
   if (index === 'github') {
@@ -91,7 +80,7 @@ const handleMenuSelect = (index: string) => {
     window.open('https://github.com/lm379/fireflow', '_blank', 'noopener,noreferrer');
     return;
   }
-  activeMenu.value = index;
+  router.push(index);
 };
 
 const toggleCollapse = () => {

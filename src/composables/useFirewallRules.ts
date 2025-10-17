@@ -3,6 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRules, addRule, updateRule, deleteRule, executeRule, getCloudConfigs } from '../api'
 import type { FirewallRule, CloudConfig, ExecuteRuleResponse } from '../api'
 import { getProviderDisplayName } from '../constants/providers'
+import { getServiceTypeDisplayName } from '../constants/serviceTypes'
 
 // 防火墙规则表单接口
 export interface FirewallRuleForm {
@@ -51,8 +52,13 @@ export function useFirewallRules() {
     if (!form.value.port.includes(',')) return 1
     
     const provider = selectedCloudConfig.value?.provider
+    const configType = selectedCloudConfig.value?.type
+    
     if (provider === 'HuaweiCloud') {
       // 华为云支持多端口，只创建一条规则
+      return 1
+    } else if (provider === 'Aliyun' && Number(configType) === 1) {
+      // 阿里云轻量应用服务器支持多端口，只创建一条规则
       return 1
     } else {
       // 其他云服务商需要拆分成多条规则
@@ -62,7 +68,9 @@ export function useFirewallRules() {
 
   // 是否支持多端口
   const supportMultiPort = computed(() => {
-    return selectedCloudConfig.value?.provider === 'HuaweiCloud'
+    const provider = selectedCloudConfig.value?.provider
+    const configType = selectedCloudConfig.value?.type
+    return provider === 'HuaweiCloud' || (provider === 'Aliyun' && Number(configType) === 1)
   })
 
   // 监听协议和云配置变化，自动设置端口
@@ -98,10 +106,18 @@ export function useFirewallRules() {
       cloudConfigs.value = response.data
       cloudConfigOptions.value = response.data
         .filter(config => config.is_enabled)
-        .map(config => ({
-          label: `${getProviderDisplayName(config.provider)} - ${config.description || config.instance_id} (${config.region})`,
-          value: config.ID,
-        }))
+        .map(config => {
+          const providerName = getProviderDisplayName(config.provider)
+          const serviceTypeName = config.type !== undefined && config.type !== null 
+            ? getServiceTypeDisplayName(config.provider, config.type)
+            : ''
+          const fullProviderName = serviceTypeName ? `${providerName} ${serviceTypeName}` : providerName
+          
+          return {
+            label: `${fullProviderName} - ${config.description || config.instance_id} (${config.region})`,
+            value: config.ID,
+          }
+        })
     } catch (error) {
       ElMessage.error('获取云服务配置失败')
     }
@@ -136,13 +152,6 @@ export function useFirewallRules() {
       return false
     }
     
-    // 检查非华为云是否输入了多端口
-    const provider = selectedCloudConfig.value?.provider
-    if (provider !== 'HuaweiCloud' && form.value.port.includes(',')) {
-      ElMessage.error('当前云服务商不支持多端口，请输入单个端口')
-      return false
-    }
-    
     return true
   }
 
@@ -170,19 +179,29 @@ export function useFirewallRules() {
       } else {
         // 添加规则
         const provider = selectedCloudConfig.value?.provider
-        if (provider === 'HuaweiCloud') {
-          // 华为云支持多端口，直接提交（不拆分）
-          const processedPort = processPort(ruleData.port)
-          await addRule({ ...ruleData, port: processedPort })
-          ElMessage.success('华为云规则添加成功')
-        } else if (ruleData.port.includes(',')) {
-          // 其他云服务商需要拆分多端口
-          const ports = ruleData.port.split(',').map(p => p.trim()).filter(p => p)
-          for (const port of ports) {
-            const processedPort = processPort(port)
+        const configType = selectedCloudConfig.value?.type
+        
+        if (ruleData.port.includes(',')) {
+          // 多端口处理
+          if (provider === 'HuaweiCloud') {
+            // 华为云支持多端口，直接创建一条规则
+            const processedPort = processPort(ruleData.port)
             await addRule({ ...ruleData, port: processedPort })
+            ElMessage.success('华为云多端口规则添加成功')
+          } else if (provider === 'Aliyun' && Number(configType) === 1) {
+            // 阿里云轻量应用服务器支持多端口，直接创建一条规则
+            const processedPort = processPort(ruleData.port)
+            await addRule({ ...ruleData, port: processedPort })
+            ElMessage.success('阿里云轻量应用服务器多端口规则添加成功')
+          } else {
+            // 其他云服务商自动拆分成多条规则
+            const ports = ruleData.port.split(',').map(p => p.trim()).filter(p => p)
+            for (const port of ports) {
+              const processedPort = processPort(port)
+              await addRule({ ...ruleData, port: processedPort })
+            }
+            ElMessage.success(`规则添加成功，已自动创建 ${ports.length} 条规则`)
           }
-          ElMessage.success(`多个规则添加成功，共 ${ports.length} 条`)
         } else {
           // 单端口处理
           const processedPort = processPort(ruleData.port)
@@ -272,6 +291,34 @@ export function useFirewallRules() {
     fetchCloudConfigs()
   }
 
+  // 获取完整的云服务商显示名称
+  const getFullProviderDisplayName = (rule: FirewallRule): string => {
+    const providerName = getProviderDisplayName(rule.provider)
+    
+    // 根据cloud_config_id查找对应的云配置
+    const cloudConfig = cloudConfigs.value.find(config => config.ID === rule.cloud_config_id)
+    
+    if (cloudConfig && cloudConfig.type !== undefined && cloudConfig.type !== null) {
+      const serviceTypeName = getServiceTypeDisplayName(rule.provider, cloudConfig.type)
+      return `${providerName} ${serviceTypeName}`
+    }
+    return providerName
+  }
+
+  // 获取选中云配置的完整显示名称
+  const getSelectedConfigDisplayName = (): string => {
+    if (!selectedCloudConfig.value) return ''
+    
+    const providerName = getProviderDisplayName(selectedCloudConfig.value.provider)
+    const configType = selectedCloudConfig.value.type
+    
+    if (configType !== undefined && configType !== null) {
+      const serviceTypeName = getServiceTypeDisplayName(selectedCloudConfig.value.provider, configType)
+      return `${providerName} ${serviceTypeName}`
+    }
+    return providerName
+  }
+
   return {
     // 响应式数据
     rules,
@@ -300,5 +347,7 @@ export function useFirewallRules() {
     
     // 工具函数
     getProviderDisplayName,
+    getFullProviderDisplayName,
+    getSelectedConfigDisplayName,
   }
 }

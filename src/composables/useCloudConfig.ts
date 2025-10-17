@@ -1,22 +1,32 @@
 import { ref, computed } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { 
-  getCloudConfigs, 
-  addCloudConfig, 
-  updateCloudConfig, 
-  deleteCloudConfig, 
-  testCloudConfig, 
-  getProviders, 
-  getRegions 
+import {
+  getCloudConfigs,
+  addCloudConfig,
+  updateCloudConfig,
+  deleteCloudConfig,
+  testCloudConfig,
+  getProviders,
+  getRegions
 } from '../api'
 import type { CloudConfig } from '../api'
 import { getProviderDisplayName } from '../constants/providers'
+import {
+  getServiceTypeDisplayName as getServiceTypeDisplayNameFromMap,
+  getProviderServiceTypes,
+  type ServiceType
+} from '../constants/serviceTypes'
 
 // 格式化日期
 export const formatDate = (_row: any, _column: any, cellValue: string) => {
   if (!cellValue) return ''
   return dayjs(cellValue).format('YYYY-MM-DD HH:mm:ss')
+}
+
+// 服务类型映射函数
+export const getServiceTypeDisplayName = (provider: string, typeValue: any): string => {
+  return getServiceTypeDisplayNameFromMap(provider, typeValue)
 }
 
 // 导出映射函数供外部使用
@@ -33,6 +43,7 @@ export interface CloudConfigForm {
   is_default: boolean
   is_enabled: boolean
   project_id?: string
+  type?: string
 }
 
 // 区域接口
@@ -46,7 +57,9 @@ export function useCloudConfig() {
   const configs = ref<CloudConfig[]>([])
   const providers = ref<string[]>([])
   const regions = ref<Region[]>([])
+  const serviceTypes = ref<ServiceType[]>([])
   const loadingRegions = ref(false)
+  const loadingServiceTypes = ref(false)
   const isEdit = ref(false)
   const editId = ref<number | null>(null)
 
@@ -60,6 +73,7 @@ export function useCloudConfig() {
     is_default: false,
     is_enabled: true,
     project_id: '',
+    type: '',
   })
 
   // 是否显示ProjectID字段（仅华为云需要）
@@ -100,12 +114,28 @@ export function useCloudConfig() {
     }
   }
 
+  // 获取服务类型列表
+  const fetchServiceTypes = async (provider: string) => {
+    loadingServiceTypes.value = true
+    try {
+      const providerServiceTypes = getProviderServiceTypes(provider)
+      serviceTypes.value = providerServiceTypes
+    } catch (error) {
+      ElMessage.error('获取服务类型失败')
+    } finally {
+      loadingServiceTypes.value = false
+    }
+  }
+
   // 云服务商变更处理
   const onProviderChange = (provider: string) => {
     form.value.region = ''
+    form.value.type = ''
     regions.value = []
+    serviceTypes.value = []
     if (provider) {
       fetchRegions(provider)
+      fetchServiceTypes(provider)
     }
   }
 
@@ -121,6 +151,7 @@ export function useCloudConfig() {
       is_default: false,
       is_enabled: true,
       project_id: '',
+      type: '',
     }
     isEdit.value = false
     editId.value = null
@@ -133,33 +164,33 @@ export function useCloudConfig() {
       ElMessage.error('请选择云服务商')
       return false
     }
-    
+
     if (!form.value.region) {
       ElMessage.error('请选择区域')
       return false
     }
-    
+
     if (!form.value.instance_id) {
       ElMessage.error('请输入实例ID/安全组ID')
       return false
     }
-    
+
     if (!form.value.secret_id) {
       ElMessage.error('请输入Access Key ID')
       return false
     }
-    
+
     if (!form.value.secret_key && !isEdit.value) {
       ElMessage.error('请输入Access Key Secret')
       return false
     }
-    
+
     // 华为云必须填写ProjectID
     if (form.value.provider === 'HuaweiCloud' && !form.value.project_id) {
       ElMessage.error('华为云必须填写Project ID')
       return false
     }
-    
+
     return true
   }
 
@@ -179,6 +210,7 @@ export function useCloudConfig() {
       description: form.value.description,
       is_default: form.value.is_default,
       is_enabled: form.value.is_enabled,
+      type: form.value.type, // 添加服务类型字段
     }
 
     // 华为云添加project_id
@@ -223,8 +255,10 @@ export function useCloudConfig() {
       is_default: row.is_default,
       is_enabled: row.is_enabled,
       project_id: row.project_id || '',
+      type: row.type || '',
     }
     fetchRegions(row.provider)
+    fetchServiceTypes(row.provider)
   }
 
   // 删除配置
@@ -269,18 +303,21 @@ export function useCloudConfig() {
     configs,
     providers,
     regions,
+    serviceTypes,
     loadingRegions,
+    loadingServiceTypes,
     form,
     isEdit,
     editId,
-    
+
     // 计算属性
     showProjectId,
-    
+
     // 方法
     fetchCloudConfigs,
     fetchProviders,
     fetchRegions,
+    fetchServiceTypes,
     onProviderChange,
     onSubmit,
     onCancel,

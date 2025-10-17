@@ -25,8 +25,16 @@
           <el-col :span="12">
             <el-form-item label="端口号 *">
               <el-input v-model="form.port" :disabled="isPortDisabled" placeholder="例如：22, 80, 443, 8000-8080, ALL"></el-input>
-              <div v-if="form.port.includes(',') && selectedCloudConfig?.provider !== 'HuaweiCloud'" style="color: #E6A23C; font-size: 12px; line-height: 1.5;">
-                提示：当前云服务商不支持多端口，将自动创建 {{ portCount }} 条独立规则
+              <div v-if="form.port.includes(',') && selectedCloudConfig" style="color: #909399; font-size: 12px; line-height: 1.5;">
+                <span v-if="selectedCloudConfig.provider === 'HuaweiCloud'" style="color: #67C23A;">
+                  华为云ECS/Flexus均支持多端口，将创建 1 条包含所有端口的规则
+                </span>
+                <span v-else-if="selectedCloudConfig.provider === 'Aliyun' && Number(selectedCloudConfig.type) === 1" style="color: #67C23A;">
+                  阿里云轻量应用服务器支持多端口，将创建 1 条包含所有端口的规则
+                </span>
+                <span v-else style="color: #E6A23C;">
+                  {{ getSelectedConfigDisplayName() }}不支持多端口，将自动创建 {{ portCount }} 条独立规则
+                </span>
               </div>
             </el-form-item>
           </el-col>
@@ -65,10 +73,10 @@
         </div>
       </template>
       <el-table :data="rules" style="width: 100%">
-        <el-table-column prop="remark" label="备注" width="180" />
-        <el-table-column prop="provider" label="云服务商" width="120">
+        <el-table-column prop="remark" label="备注" width="120" />
+        <el-table-column prop="provider" label="云服务商" width="180">
           <template #default="scope">
-            {{ getProviderDisplayName(scope.row.provider) }}
+            {{ getFullProviderDisplayName(scope.row) }}
           </template>
         </el-table-column>
         <el-table-column prop="instance_id" label="实例ID" width="180" />
@@ -113,7 +121,8 @@ const {
   handleDelete,
   handleExecute,
   initData,
-  getProviderDisplayName,
+  getFullProviderDisplayName,
+  getSelectedConfigDisplayName,
 } = useFirewallRules()
 
 const formatDate = (_row: any, _column: any, cellValue: string) => {
